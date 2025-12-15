@@ -666,12 +666,6 @@ const Products = () => {
                           : 'border-border bg-card'
                       }`}
                     >
-                      {/* Product Index */}
-                      <div className="flex-shrink-0 w-8 text-center">
-                        <span className="text-xs font-bold text-muted-foreground bg-muted px-1.5 py-0.5 rounded-full">
-                          {index + 1}
-                        </span>
-                      </div>
 
                       {/* Stock Status Warning */}
                       {(hasIncompleteQuantity || isOutOfStock) && (
@@ -937,19 +931,6 @@ const ProductDialog = ({
               required
             />
           </div>
-          {isEdit && (
-            <div>
-              <Label htmlFor="stock">Stock Quantity</Label>
-              <Input
-                id="stock"
-                type="number"
-                step="0.01"
-                value={formData.stock}
-                onChange={(e) => handleInputChange('stock', e.target.value)}
-                required
-              />
-            </div>
-          )}
           <div>
             <Label htmlFor="minStock">Minimum Stock</Label>
             <Input
