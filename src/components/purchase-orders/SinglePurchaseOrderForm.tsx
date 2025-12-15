@@ -810,7 +810,6 @@ const ProductForm = ({
     name: "",
     sku: "",
     price: "",
-    stock: "",
     category: "",
     unit: "",
     minStock: "",
@@ -824,14 +823,14 @@ const ProductForm = ({
     const submitData = {
       ...formData,
       price: parseFloat(formData.price),
-      stock: parseFloat(formData.stock),
+      stock: 0, // Stock is always 0 - updated only through purchase orders
       minStock: parseFloat(formData.minStock),
       costPrice: parseFloat(formData.costPrice),
       maxStock: parseFloat(formData.maxStock)
     };
     onSubmit(submitData);
     setFormData({ 
-      name: "", sku: "", price: "", stock: "", category: "", 
+      name: "", sku: "", price: "", category: "", 
       unit: "", minStock: "", description: "", costPrice: "", maxStock: "" 
     });
   };
@@ -872,7 +871,7 @@ const ProductForm = ({
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 gap-3">
         <div>
           <Label htmlFor="price" className="text-sm">Price *</Label>
           <Input
@@ -895,17 +894,6 @@ const ProductForm = ({
             onChange={(e) => handleInputChange('costPrice', e.target.value)}
             min="0"
             step="0.01"
-            className="h-8"
-          />
-        </div>
-        <div>
-          <Label htmlFor="stock" className="text-sm">Stock</Label>
-          <Input
-            id="stock"
-            type="number"
-            value={formData.stock}
-            onChange={(e) => handleInputChange('stock', e.target.value)}
-            min="0"
             className="h-8"
           />
         </div>
