@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import React, { useState, useEffect, useRef } from 'react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { Package, AlertTriangle, TrendingUp } from "lucide-react";
+import { Package, AlertTriangle, TrendingUp, Loader2 } from "lucide-react";
 
 interface FilteredProductsModalProps {
   open: boolean;
@@ -10,7 +10,7 @@ interface FilteredProductsModalProps {
   title: string;
   filterType: 'lowStock' | 'outOfStock' | 'inStock' | 'all';
   onFetchAllProducts?: () => Promise<any[]>;
-  products?: any[]; // Add optional products prop
+  products?: any[];
 }
 
 export const FilteredProductsModal: React.FC<FilteredProductsModalProps> = ({
@@ -19,18 +19,25 @@ export const FilteredProductsModal: React.FC<FilteredProductsModalProps> = ({
   title,
   filterType,
   onFetchAllProducts,
-  products = [] // Default to empty array
+  products = []
 }) => {
-  const [allProducts, setAllProducts] = useState<any[]>(products);
+  const [allProducts, setAllProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
+  const hasFetched = useRef(false);
 
   useEffect(() => {
-    if (open && onFetchAllProducts) {
+    if (open && onFetchAllProducts && !hasFetched.current) {
+      hasFetched.current = true;
       fetchAllProducts();
-    } else if (products.length > 0) {
+    } else if (open && products.length > 0 && !onFetchAllProducts) {
       setAllProducts(products);
     }
-  }, [open, onFetchAllProducts, products]);
+    
+    // Reset when modal closes
+    if (!open) {
+      hasFetched.current = false;
+    }
+  }, [open]);
 
   const fetchAllProducts = async () => {
     if (!onFetchAllProducts) return;
@@ -50,10 +57,11 @@ export const FilteredProductsModal: React.FC<FilteredProductsModalProps> = ({
   const getFilteredProducts = () => {
     switch (filterType) {
       case 'lowStock':
-        return allProducts.filter(product => 
-          (product.stock || product.currentStock || 0) <= (product.minStock || 0) && 
-          (product.stock || product.currentStock || 0) > 0
-        );
+        return allProducts.filter(product => {
+          const stock = product.stock || product.currentStock || 0;
+          const minStock = product.minStock || 0;
+          return stock <= minStock;
+        });
       case 'outOfStock':
         return allProducts.filter(product => (product.stock || product.currentStock || 0) === 0);
       case 'inStock':
@@ -71,44 +79,54 @@ export const FilteredProductsModal: React.FC<FilteredProductsModalProps> = ({
     return { status: 'In Stock', color: 'bg-green-500 text-white', icon: TrendingUp };
   };
 
-  const formatCurrency = (value: number | undefined | null) => {
-    if (value === undefined || value === null || isNaN(value)) {
-      return '0';
-    }
-    return Math.round(value).toLocaleString();
-  };
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Package className="h-5 w-5 text-blue-600" />
-            {title} ({loading ? 'Loading...' : `${filteredProducts.length} products`})
+            {title} {!loading && `(${filteredProducts.length} products)`}
           </DialogTitle>
+          <DialogDescription>
+            {loading ? 'Fetching all products...' : `Showing ${filterType === 'lowStock' ? 'low stock and out of stock' : filterType} products`}
+          </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="space-y-3">
           {loading ? (
-            <div className="text-center py-8">
-              <Package className="h-12 w-12 text-muted-foreground mx-auto mb-3 animate-pulse" />
-              <div className="text-muted-foreground">Loading all products...</div>
+            <div className="flex flex-col items-center justify-center py-16">
+              {/* Beautiful animated loader */}
+              <div className="relative">
+                {/* Outer ring */}
+                <div className="w-16 h-16 rounded-full border-4 border-muted animate-pulse"></div>
+                {/* Spinning ring */}
+                <div className="absolute inset-0 w-16 h-16 rounded-full border-4 border-transparent border-t-blue-600 animate-spin"></div>
+                {/* Center icon */}
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <Package className="h-6 w-6 text-blue-600 animate-pulse" />
+                </div>
+              </div>
+              <div className="mt-4 text-sm font-medium text-muted-foreground">Loading products...</div>
+              <div className="mt-1 text-xs text-muted-foreground/60">Please wait</div>
             </div>
           ) : filteredProducts.length === 0 ? (
-            <div className="text-center py-8">
-              <Package className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-              <div className="text-muted-foreground">No products found for this filter</div>
+            <div className="text-center py-12">
+              <div className="w-16 h-16 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center mx-auto mb-4">
+                <Package className="h-8 w-8 text-green-600" />
+              </div>
+              <div className="font-medium text-foreground">All stocked up!</div>
+              <div className="text-sm text-muted-foreground mt-1">No products found for this filter</div>
             </div>
           ) : (
-            <div className="grid gap-3">
+            <div className="grid gap-2">
               {filteredProducts.map((product, index) => {
                 const currentStock = product.stock || product.currentStock || 0;
                 const minStock = product.minStock || 0;
                 const stockStatus = getStockStatus(currentStock, minStock);
                 const StatusIcon = stockStatus.icon;
 
-                  return (
-                  <Card key={product.id || index} className="border-l-4 border-l-blue-500">
+                return (
+                  <Card key={product.id || index} className="border-l-4 border-l-blue-500 hover:shadow-md transition-shadow">
                     <CardContent className="p-2">
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex-1 min-w-0">
