@@ -107,33 +107,23 @@ export const FilteredProductsModal: React.FC<FilteredProductsModalProps> = ({
                 const stockStatus = getStockStatus(currentStock, minStock);
                 const StatusIcon = stockStatus.icon;
 
-                return (
+                  return (
                   <Card key={product.id || index} className="border-l-4 border-l-blue-500">
-                    <CardContent className="p-4">
-                      <div className="flex justify-between items-start mb-3">
-                        <div className="flex-1">
-                          <h4 className="font-medium text-foreground">{product.name || product.productName}</h4>
-                          <p className="text-sm text-muted-foreground">SKU: {product.sku}</p>
-                          <p className="text-sm text-muted-foreground">Category: {product.category}</p>
+                    <CardContent className="p-2">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-medium text-foreground text-sm truncate">{product.name || product.productName}</h4>
+                          <p className="text-xs text-muted-foreground">SKU: {product.sku} | {product.category}</p>
                         </div>
-                        <Badge className={`text-xs ${stockStatus.color} flex items-center gap-1`}>
-                          <StatusIcon className="h-3 w-3" />
-                          {stockStatus.status}
-                        </Badge>
-                      </div>
-                      
-                      <div className="grid grid-cols-3 gap-4 text-sm">
-                        <div>
-                          <div className="font-medium text-blue-600">{currentStock} {product.unit || 'units'}</div>
-                          <div className="text-muted-foreground">Current Stock</div>
-                        </div>
-                        <div>
-                          <div className="font-medium text-orange-600">{minStock} {product.unit || 'units'}</div>
-                          <div className="text-muted-foreground">Min Stock</div>
-                        </div>
-                        <div>
-                          <div className="font-medium text-green-600">PKR {formatCurrency(product.price || product.value)}</div>
-                          <div className="text-muted-foreground">Price/Value</div>
+                        <div className="flex items-center gap-3 flex-shrink-0">
+                          <div className="text-right">
+                            <div className="font-medium text-blue-600 text-sm">{currentStock} {product.unit || 'units'}</div>
+                            <div className="text-xs text-muted-foreground">Min: {minStock}</div>
+                          </div>
+                          <Badge className={`text-xs ${stockStatus.color} flex items-center gap-1 whitespace-nowrap`}>
+                            <StatusIcon className="h-3 w-3" />
+                            {stockStatus.status}
+                          </Badge>
                         </div>
                       </div>
                     </CardContent>
