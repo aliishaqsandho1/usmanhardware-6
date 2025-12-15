@@ -111,7 +111,7 @@ const businessItems: MenuItem[] = [
     icon: Truck,
   },
   {
-    title: "Purchase Orders",
+    title: "Stock Purchase",
     url: "/purchase-orders",
     icon: FileText,
   }
