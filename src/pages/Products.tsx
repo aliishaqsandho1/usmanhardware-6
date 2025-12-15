@@ -454,6 +454,20 @@ const Products = () => {
     );
   };
 
+  // Fetch all products for the modal (not paginated)
+  const fetchAllProductsForModal = async () => {
+    try {
+      const response = await productsApi.getAll({ limit: 10000, status: 'active' });
+      if (response.success) {
+        return response.data.products || response.data || [];
+      }
+      return [];
+    } catch (error) {
+      console.error('Failed to fetch all products for modal:', error);
+      return [];
+    }
+  };
+
   const openFilteredModal = (filterType: 'lowStock' | 'outOfStock' | 'inStock' | 'all', title: string) => {
     setFilteredProductsModal({
       open: true,
@@ -785,8 +799,8 @@ const Products = () => {
         open={filteredProductsModal.open}
         onOpenChange={(open) => setFilteredProductsModal(prev => ({ ...prev, open }))}
         title={filteredProductsModal.title}
-        products={products}
         filterType={filteredProductsModal.filterType}
+        onFetchAllProducts={fetchAllProductsForModal}
       />
 
       <ProductDetailsModal
