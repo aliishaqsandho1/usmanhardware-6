@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { Package, Search, Plus, Minus, Pin, PinOff, Filter, Menu, X, AlertTriangle, Maximize, Minimize, LayoutGrid, Columns2, Columns3, Columns4, Grid3X3, Grid2X2, FileText } from "lucide-react";
+import { Package, Search, Plus, Minus, Pin, PinOff, Filter, Menu, X, AlertTriangle, Maximize, Minimize, LayoutGrid, Columns2, Columns3, Columns4, Grid3X3, Grid2X2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { salesApi, customersApi, productsApi, suppliersApi } from "@/services/api";
@@ -984,14 +984,6 @@ const formatPakistaniTime = (timeString: string): string => {
               >
                 <Plus className="h-3 w-3 md:h-4 md:w-4 mr-1" />
                 Quick Add Product
-              </Button>
-              <Button
-                onClick={() => navigate('/inventory-logs')}
-                variant="outline"
-                className="text-xs md:text-sm h-8 md:h-9 px-2 md:px-3"
-              >
-                <FileText className="h-3 w-3 md:h-4 md:w-4 mr-1" />
-                Inventory Logs
               </Button>
               
             </div>
