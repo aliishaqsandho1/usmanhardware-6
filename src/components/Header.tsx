@@ -1,5 +1,6 @@
 
-import { Bell, Package, User, Menu, Home, ChevronRight, Maximize, Minimize } from "lucide-react";
+import { Bell, ClipboardList, User, Menu, Home, ChevronRight, Maximize, Minimize } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -14,7 +15,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useState, useEffect } from "react";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { getPendingOrders, removePendingOrder } from "@/data/storeData";
+// Removed pending orders import
 import { notificationsApi } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
 import { useSidebar } from "@/components/ui/sidebar";
@@ -26,11 +27,10 @@ export function Header() {
   const { toggleSidebar } = useSidebar();
   const isMobile = useIsMobile();
   const location = useLocation();
+  const navigate = useNavigate();
   
   const [unreadCount, setUnreadCount] = useState(0);
   const [notifications, setNotifications] = useState<any[]>([]);
-  const [pendingOrders, setPendingOrders] = useState<any[]>([]);
-  const [pendingOrdersCount, setPendingOrdersCount] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
 
   // Fullscreen toggle function
@@ -69,12 +69,10 @@ export function Header() {
 
   useEffect(() => {
     fetchNotifications();
-    fetchPendingOrders();
     
     // Set up polling for real-time updates
     const interval = setInterval(() => {
       fetchNotifications();
-      fetchPendingOrders();
     }, 30000); // Poll every 30 seconds
 
     return () => clearInterval(interval);
@@ -99,12 +97,6 @@ export function Header() {
       setNotifications(demoNotifications);
       setUnreadCount(3);
     }
-  };
-
-  const fetchPendingOrders = () => {
-    const orders = getPendingOrders();
-    setPendingOrders(orders);
-    setPendingOrdersCount(orders.length);
   };
 
   const handleMarkAsRead = async (notificationId: number) => {
@@ -134,15 +126,6 @@ export function Header() {
     } catch (error) {
       console.error('Failed to mark all notifications as read:', error);
     }
-  };
-
-  const handleRemoveOrder = (orderId: string) => {
-    removePendingOrder(orderId);
-    fetchPendingOrders(); // Refresh the list
-    toast({
-      title: "Order Removed",
-      description: "Pending order has been removed successfully",
-    });
   };
 
   const getNotificationIcon = (type: string) => {
@@ -245,69 +228,16 @@ export function Header() {
             )}
           </Button>
 
-          {/* Pending Orders Dropdown */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="relative hover:bg-accent hover:text-accent-foreground h-8 w-8 md:h-10 md:w-10"
-              >
-                <Package className="h-4 w-4 md:h-5 md:w-5" />
-                {pendingOrdersCount > 0 && (
-                  <Badge className="absolute -top-1 -right-1 h-4 w-4 md:h-5 md:w-5 rounded-full p-0 flex items-center justify-center text-xs bg-destructive text-destructive-foreground">
-                    {pendingOrdersCount}
-                  </Badge>
-                )}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-80 max-h-96 overflow-y-auto bg-background border shadow-lg z-50">
-              <DropdownMenuLabel className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Package className="h-4 w-4 text-blue-600" />
-                  Pending Orders ({pendingOrdersCount})
-                </div>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              {pendingOrders.length === 0 ? (
-                <div className="p-4 text-center text-muted-foreground">
-                  <Package className="h-8 w-8 mx-auto mb-2 text-muted-foreground/50" />
-                  <p className="text-sm">No pending orders</p>
-                </div>
-              ) : (
-                pendingOrders.map((order) => (
-                  <DropdownMenuItem key={order.id} className="p-0">
-                    <div className="w-full p-3 hover:bg-accent">
-                      <div className="flex justify-between items-start mb-2">
-                        <div>
-                          <p className="font-medium text-sm">Order #{order.id}</p>
-                          <p className="text-xs text-muted-foreground">{order.customer}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-bold text-sm text-green-600">PKR {order.totalAmount.toLocaleString()}</p>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            className="h-6 w-6 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleRemoveOrder(order.id);
-                            }}
-                          >
-                            ×
-                          </Button>
-                        </div>
-                      </div>
-                      <p className="text-xs text-muted-foreground">{order.orderDate}</p>
-                      <Badge variant="outline" className="text-xs mt-1">
-                        {order.items.length} items
-                      </Badge>
-                    </div>
-                  </DropdownMenuItem>
-                ))
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {/* Inventory Logs Button */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => navigate('/inventory-logs')}
+            className="h-8 w-8 md:h-10 md:w-10 hover:bg-accent hover:text-accent-foreground"
+            title="Inventory Logs"
+          >
+            <ClipboardList className="h-4 w-4 md:h-5 md:w-5" />
+          </Button>
 
           {/* Notifications Dropdown */}
           <DropdownMenu>
