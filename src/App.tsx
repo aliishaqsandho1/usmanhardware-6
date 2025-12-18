@@ -30,6 +30,7 @@ import Employees from "./pages/Employees";
 import OutsourcedOrders from "./pages/OutsourcedOrders";
 import Profit from "./pages/Profit";
 import Credits from "./pages/Credits";
+import InventoryLogs from "./pages/InventoryLogs";
 
 const queryClient = new QueryClient();
 
@@ -52,6 +53,7 @@ const App = () => (
                      <Route path="/profit" element={<Profit />} />
                     <Route path="/products" element={<Products />} />
                     <Route path="/sales" element={<Sales />} />
+                    <Route path="/inventory-logs" element={<InventoryLogs />} />
                     <Route path="/orders" element={<Orders />} />
                     <Route path="/outsourced-orders" element={<OutsourcedOrders />} />
                      <Route path="/customers" element={<Customers />} />
