@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Search, Filter, Clock, Database, User, ChevronDown, ChevronUp, FileText, Plus, Edit, Trash2, RefreshCw } from "lucide-react";
+import { ArrowLeft, Search, Filter, Clock, Database, User, ChevronDown, ChevronUp, FileText, Plus, Edit, Trash2, RefreshCw, Activity, TrendingUp, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,6 +36,16 @@ interface AuditLogsResponse {
       itemsPerPage: number;
     };
   };
+}
+
+interface AuditStats {
+  totalLogs: number;
+  todayLogs: number;
+  weekLogs: number;
+  monthLogs: number;
+  byAction: { INSERT: number; UPDATE: number; DELETE: number };
+  byTable: Record<string, number>;
+  recentActivity: { date: string; count: number }[];
 }
 
 const getActionIcon = (action: string) => {
@@ -193,20 +203,69 @@ const AuditLogs = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [actionFilter, setActionFilter] = useState<string>("all");
   const [tableFilter, setTableFilter] = useState<string>("all");
+  const [userFilter, setUserFilter] = useState<string>("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  
+  // API-based data
+  const [stats, setStats] = useState<AuditStats | null>(null);
+  const [tables, setTables] = useState<string[]>([]);
+  const [users, setUsers] = useState<{ userId: number; userLogin: string; count: number }[]>([]);
+  const [statsLoading, setStatsLoading] = useState(true);
+
+  const fetchStats = async () => {
+    try {
+      const response = await fetch(`${apiConfig.getBaseUrl()}/audit-logs/stats`);
+      const data = await response.json();
+      if (data.success) {
+        setStats(data.data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch audit stats:", error);
+    }
+  };
+
+  const fetchTables = async () => {
+    try {
+      const response = await fetch(`${apiConfig.getBaseUrl()}/audit-logs/tables`);
+      const data = await response.json();
+      if (data.success) {
+        setTables(data.data || []);
+      }
+    } catch (error) {
+      console.error("Failed to fetch tables:", error);
+    }
+  };
+
+  const fetchUsers = async () => {
+    try {
+      const response = await fetch(`${apiConfig.getBaseUrl()}/audit-logs/users`);
+      const data = await response.json();
+      if (data.success) {
+        setUsers(data.data || []);
+      }
+    } catch (error) {
+      console.error("Failed to fetch users:", error);
+    }
+  };
 
   const fetchLogs = async (page: number = 1) => {
     setLoading(true);
     try {
-      const response = await fetch(
-        `${apiConfig.getBaseUrl()}/audit-logs?page=${page}&per_page=50`
-      );
+      let url = `${apiConfig.getBaseUrl()}/audit-logs?page=${page}&per_page=50`;
+      if (actionFilter !== "all") url += `&action=${actionFilter}`;
+      if (tableFilter !== "all") url += `&table=${tableFilter}`;
+      if (userFilter !== "all") url += `&user_id=${userFilter}`;
+      if (searchQuery) url += `&search=${encodeURIComponent(searchQuery)}`;
+
+      const response = await fetch(url);
       const data: AuditLogsResponse = await response.json();
       if (data.success) {
         setLogs(data.data.logs);
         setTotalPages(data.data.pagination.totalPages);
         setCurrentPage(data.data.pagination.currentPage);
+        setTotalItems(data.data.pagination.totalItems);
       }
     } catch (error) {
       console.error("Failed to fetch audit logs:", error);
@@ -215,38 +274,41 @@ const AuditLogs = () => {
     }
   };
 
+  const fetchAllData = async () => {
+    setStatsLoading(true);
+    await Promise.all([fetchStats(), fetchTables(), fetchUsers()]);
+    setStatsLoading(false);
+  };
+
   useEffect(() => {
+    fetchAllData();
     fetchLogs();
   }, []);
 
-  const uniqueTables = useMemo(() => {
-    const tables = new Set(logs.map(log => log.tableName));
-    return Array.from(tables);
-  }, [logs]);
+  useEffect(() => {
+    fetchLogs(1);
+  }, [actionFilter, tableFilter, userFilter]);
+
+  const handleSearch = () => {
+    fetchLogs(1);
+  };
+
+  const handleRefresh = async () => {
+    await fetchAllData();
+    await fetchLogs(currentPage);
+  };
 
   const filteredLogs = useMemo(() => {
+    if (!searchQuery) return logs;
     return logs.filter(log => {
-      const matchesSearch = searchQuery === "" || 
-        log.tableName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      return log.tableName.toLowerCase().includes(searchQuery.toLowerCase()) ||
         log.action.toLowerCase().includes(searchQuery.toLowerCase()) ||
         log.userLogin.toLowerCase().includes(searchQuery.toLowerCase()) ||
         JSON.stringify(log.oldData).toLowerCase().includes(searchQuery.toLowerCase()) ||
         JSON.stringify(log.newData).toLowerCase().includes(searchQuery.toLowerCase()) ||
         log.recordId.toString().includes(searchQuery);
-
-      const matchesAction = actionFilter === "all" || log.action === actionFilter;
-      const matchesTable = tableFilter === "all" || log.tableName === tableFilter;
-
-      return matchesSearch && matchesAction && matchesTable;
     });
-  }, [logs, searchQuery, actionFilter, tableFilter]);
-
-  const stats = useMemo(() => ({
-    total: logs.length,
-    inserts: logs.filter(l => l.action === "INSERT").length,
-    updates: logs.filter(l => l.action === "UPDATE").length,
-    deletes: logs.filter(l => l.action === "DELETE").length,
-  }), [logs]);
+  }, [logs, searchQuery]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -262,82 +324,145 @@ const AuditLogs = () => {
               <p className="text-muted-foreground text-sm">Track all system activities and changes</p>
             </div>
           </div>
-          <Button variant="outline" size="sm" onClick={() => fetchLogs(currentPage)}>
+          <Button variant="outline" size="sm" onClick={handleRefresh}>
             <RefreshCw className="h-4 w-4 mr-2" />
             Refresh
           </Button>
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-          <Card className="border-border/50">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-primary/10">
-                  <Database className="h-4 w-4 text-primary" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{stats.total}</p>
-                  <p className="text-xs text-muted-foreground">Total Logs</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="border-border/50">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-emerald-500/10">
-                  <Plus className="h-4 w-4 text-emerald-600" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{stats.inserts}</p>
-                  <p className="text-xs text-muted-foreground">Inserts</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="border-border/50">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-amber-500/10">
-                  <Edit className="h-4 w-4 text-amber-600" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{stats.updates}</p>
-                  <p className="text-xs text-muted-foreground">Updates</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="border-border/50">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-red-500/10">
-                  <Trash2 className="h-4 w-4 text-red-600" />
-                </div>
-                <div>
-                  <p className="text-2xl font-bold">{stats.deletes}</p>
-                  <p className="text-xs text-muted-foreground">Deletes</p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          {statsLoading ? (
+            Array.from({ length: 4 }).map((_, i) => (
+              <Card key={i} className="border-border/50">
+                <CardContent className="p-4">
+                  <Skeleton className="h-16 w-full" />
+                </CardContent>
+              </Card>
+            ))
+          ) : (
+            <>
+              <Card className="border-border/50 bg-gradient-to-br from-primary/5 to-transparent">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-xl bg-primary/10 border border-primary/20">
+                      <Activity className="h-5 w-5 text-primary" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold">{stats?.totalLogs?.toLocaleString() || totalItems}</p>
+                      <p className="text-xs text-muted-foreground">Total Logs</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="border-border/50 bg-gradient-to-br from-emerald-500/5 to-transparent">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+                      <Calendar className="h-5 w-5 text-emerald-600" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold">{stats?.todayLogs?.toLocaleString() || 0}</p>
+                      <p className="text-xs text-muted-foreground">Today</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="border-border/50 bg-gradient-to-br from-amber-500/5 to-transparent">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20">
+                      <TrendingUp className="h-5 w-5 text-amber-600" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold">{stats?.weekLogs?.toLocaleString() || 0}</p>
+                      <p className="text-xs text-muted-foreground">This Week</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className="border-border/50 bg-gradient-to-br from-violet-500/5 to-transparent">
+                <CardContent className="p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 rounded-xl bg-violet-500/10 border border-violet-500/20">
+                      <Database className="h-5 w-5 text-violet-600" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold">{stats?.monthLogs?.toLocaleString() || 0}</p>
+                      <p className="text-xs text-muted-foreground">This Month</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </>
+          )}
         </div>
+
+        {/* Action Stats */}
+        {stats?.byAction && (
+          <div className="grid grid-cols-3 gap-4 mb-6">
+            <Card className="border-border/50">
+              <CardContent className="p-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                    <Plus className="h-4 w-4 text-emerald-600" />
+                  </div>
+                  <div>
+                    <p className="text-lg font-semibold">{stats.byAction.INSERT?.toLocaleString() || 0}</p>
+                    <p className="text-xs text-muted-foreground">Inserts</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border-border/50">
+              <CardContent className="p-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                    <Edit className="h-4 w-4 text-amber-600" />
+                  </div>
+                  <div>
+                    <p className="text-lg font-semibold">{stats.byAction.UPDATE?.toLocaleString() || 0}</p>
+                    <p className="text-xs text-muted-foreground">Updates</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="border-border/50">
+              <CardContent className="p-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-red-500/10 border border-red-500/20">
+                    <Trash2 className="h-4 w-4 text-red-600" />
+                  </div>
+                  <div>
+                    <p className="text-lg font-semibold">{stats.byAction.DELETE?.toLocaleString() || 0}</p>
+                    <p className="text-xs text-muted-foreground">Deletes</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* Filters */}
         <Card className="mb-6 border-border/50">
           <CardContent className="p-4">
-            <div className="flex flex-col md:flex-row gap-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search logs by table, action, user, or data..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
-                />
+            <div className="flex flex-col lg:flex-row gap-4">
+              <div className="relative flex-1 flex gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search logs by table, action, user, or data..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                    className="pl-10"
+                  />
+                </div>
+                <Button onClick={handleSearch} variant="secondary">
+                  Search
+                </Button>
               </div>
-              <div className="flex gap-3">
+              <div className="flex flex-wrap gap-3">
                 <Select value={actionFilter} onValueChange={setActionFilter}>
                   <SelectTrigger className="w-[140px]">
                     <Filter className="h-4 w-4 mr-2" />
@@ -357,9 +482,23 @@ const AuditLogs = () => {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Tables</SelectItem>
-                    {uniqueTables.map(table => (
+                    {tables.map(table => (
                       <SelectItem key={table} value={table}>
                         {formatTableName(table)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={userFilter} onValueChange={setUserFilter}>
+                  <SelectTrigger className="w-[160px]">
+                    <User className="h-4 w-4 mr-2" />
+                    <SelectValue placeholder="User" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Users</SelectItem>
+                    {users.map(user => (
+                      <SelectItem key={user.userId || user.userLogin} value={user.userId?.toString() || user.userLogin}>
+                        {user.userLogin} ({user.count})
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -368,6 +507,15 @@ const AuditLogs = () => {
             </div>
           </CardContent>
         </Card>
+
+        {/* Results Count */}
+        {!loading && (
+          <div className="mb-4 flex items-center justify-between">
+            <p className="text-sm text-muted-foreground">
+              Showing {filteredLogs.length} of {totalItems.toLocaleString()} logs
+            </p>
+          </div>
+        )}
 
         {/* Logs List */}
         <div className="space-y-3">
@@ -391,7 +539,7 @@ const AuditLogs = () => {
                 <Database className="h-12 w-12 mx-auto text-muted-foreground/50 mb-4" />
                 <h3 className="font-semibold text-lg mb-1">No logs found</h3>
                 <p className="text-muted-foreground text-sm">
-                  {searchQuery || actionFilter !== "all" || tableFilter !== "all"
+                  {searchQuery || actionFilter !== "all" || tableFilter !== "all" || userFilter !== "all"
                     ? "Try adjusting your filters"
                     : "No audit logs have been recorded yet"}
                 </p>
@@ -410,7 +558,7 @@ const AuditLogs = () => {
             <Button
               variant="outline"
               size="sm"
-              disabled={currentPage === 1}
+              disabled={currentPage === 1 || loading}
               onClick={() => fetchLogs(currentPage - 1)}
             >
               Previous
@@ -421,7 +569,7 @@ const AuditLogs = () => {
             <Button
               variant="outline"
               size="sm"
-              disabled={currentPage === totalPages}
+              disabled={currentPage === totalPages || loading}
               onClick={() => fetchLogs(currentPage + 1)}
             >
               Next
