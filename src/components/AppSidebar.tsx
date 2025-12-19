@@ -35,7 +35,8 @@ import {
   MessageCircle,
   Bot,
   User,
-  Building2
+  Building2,
+  ScrollText
 } from "lucide-react"
 import { useNavigate, useLocation } from "react-router-dom"
 import { useToast } from "@/hooks/use-toast"
@@ -137,6 +138,11 @@ const analyticsItems: MenuItem[] = [
     title: "Accounts",
     url: "/accounts",
     icon: Building2,
+  },
+  {
+    title: "Audit Logs",
+    url: "/audit-logs",
+    icon: ScrollText,
   }
 ]
 

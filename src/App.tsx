@@ -31,6 +31,7 @@ import OutsourcedOrders from "./pages/OutsourcedOrders";
 import Profit from "./pages/Profit";
 import Credits from "./pages/Credits";
 import InventoryLogs from "./pages/InventoryLogs";
+import AuditLogs from "./pages/AuditLogs";
 
 const queryClient = new QueryClient();
 
@@ -69,6 +70,7 @@ const App = () => (
                      <Route path="/settings" element={<Settings />} />
                      <Route path="/backup" element={<BackupSync />} />
                     <Route path="/finances" element={<Finances />} />
+                    <Route path="/audit-logs" element={<AuditLogs />} />
                     <Route path="/reports" element={<Reports />} />
                     <Route path="*" element={<NotFound />} />
                   </Routes>
