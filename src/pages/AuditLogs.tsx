@@ -230,8 +230,10 @@ const AuditLogs = () => {
     try {
       const response = await fetch(`${apiConfig.getBaseUrl()}/audit-logs/tables`);
       const data = await response.json();
-      if (data.success) {
-        setTables(data.data || []);
+      if (data.success && Array.isArray(data.data)) {
+        setTables(data.data);
+      } else {
+        setTables([]);
       }
     } catch (error) {
       console.error("Failed to fetch tables:", error);
@@ -242,8 +244,10 @@ const AuditLogs = () => {
     try {
       const response = await fetch(`${apiConfig.getBaseUrl()}/audit-logs/users`);
       const data = await response.json();
-      if (data.success) {
-        setUsers(data.data || []);
+      if (data.success && Array.isArray(data.data)) {
+        setUsers(data.data);
+      } else {
+        setUsers([]);
       }
     } catch (error) {
       console.error("Failed to fetch users:", error);
