@@ -1,4 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { profitApi } from "@/services/profitApi";
 import { PincodeProtection } from "@/components/PincodeProtection";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,6 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 import {
   TrendingUp,
   TrendingDown,
@@ -18,7 +21,8 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Star,
-  Clock
+  Clock,
+  RefreshCw
 } from "lucide-react";
 import ProfitMainChart from "@/components/profit/ProfitMainChart";
 import { PeriodComparisonChart } from "@/components/profit/PeriodComparisonChart";
@@ -1109,10 +1113,40 @@ const InsightsTab = () => {
 };
 
 export default function Profit() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [isSyncing, setIsSyncing] = useState(false);
+
   const { data: periodComparison, isLoading: periodLoading } = useQuery({
     queryKey: ['profit-period-comparison'],
     queryFn: profitApi.getPeriodComparison,
   });
+
+  const handleBackfill = async () => {
+    setIsSyncing(true);
+    try {
+      await profitApi.backfillProfitData();
+      toast({
+        title: "Data Synced",
+        description: "Profit data has been recalculated successfully.",
+      });
+      // Invalidate all profit-related queries to refetch fresh data
+      queryClient.invalidateQueries({ queryKey: ['profit-period-comparison'] });
+      queryClient.invalidateQueries({ queryKey: ['profit-key-metrics'] });
+      queryClient.invalidateQueries({ queryKey: ['profit-ytd-summary'] });
+      queryClient.invalidateQueries({ queryKey: ['profit-daily-performance'] });
+      queryClient.invalidateQueries({ queryKey: ['profit-week-comparison'] });
+      queryClient.invalidateQueries({ queryKey: ['profit-target-achievement'] });
+    } catch (error) {
+      toast({
+        title: "Sync Failed",
+        description: "Failed to sync profit data. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   return (
     <PincodeProtection 
@@ -1127,6 +1161,15 @@ export default function Profit() {
             Profit Analytics
           </h1>
         </div>
+        <Button 
+          onClick={handleBackfill} 
+          disabled={isSyncing}
+          variant="outline"
+          className="gap-2"
+        >
+          <RefreshCw className={`h-4 w-4 ${isSyncing ? 'animate-spin' : ''}`} />
+          {isSyncing ? 'Syncing...' : 'Sync Data'}
+        </Button>
       </div>
 
       {/* Overview Cards */}
