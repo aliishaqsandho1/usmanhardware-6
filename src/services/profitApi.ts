@@ -241,4 +241,8 @@ export const profitApi = {
   // Monthly report data
   getMonthlyReport: () =>
     apiRequest<MonthlyReport[]>(`/monthly-report`),
+
+  // Backfill/sync profit data
+  backfillProfitData: () =>
+    apiRequest<{ success: boolean; message: string }>('/profit/backfill'),
 };
