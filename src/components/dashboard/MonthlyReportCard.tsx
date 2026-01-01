@@ -4,26 +4,14 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, PieChart, Pie, Cell, Legend } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, PieChart, Pie, Cell } from "recharts";
 import { Calendar, Package, TrendingUp, ShoppingBag } from "lucide-react";
-import { apiConfig } from '@/utils/apiConfig';
+import { dashboardApi } from '@/services/api';
 
-interface CategorySalesData {
+interface CategoryPerformance {
   category: string;
-  totalQuantity: number;
-  totalRevenue: number;
-  productCount: number;
-}
-
-interface MonthlyReportData {
-  month: string;
-  year: number;
-  daysElapsed: number;
-  totalDays: number;
-  categories: CategorySalesData[];
-  totalQuantitySold: number;
-  totalRevenue: number;
-  totalProducts: number;
+  revenue: number;
+  unitsSold: number;
 }
 
 const CHART_COLORS = [
@@ -66,48 +54,41 @@ const chartConfig = {
 };
 
 export default function MonthlyReportCard() {
-  const { data: reportData, isLoading, error } = useQuery({
-    queryKey: ['monthly-category-sales'],
-    queryFn: async () => {
-      const response = await fetch(`${apiConfig.getBaseUrl()}/reports/monthly-category-sales`);
-      if (!response.ok) throw new Error('Failed to fetch monthly report');
-      return response.json();
-    },
+  const { data: enhancedData, isLoading, error } = useQuery({
+    queryKey: ['dashboard-enhanced-stats'],
+    queryFn: () => dashboardApi.getEnhancedStats(),
     refetchInterval: 5 * 60 * 1000, // Refetch every 5 minutes
   });
 
-  const report: MonthlyReportData = reportData?.data || {
-    month: new Date().toLocaleString('en-US', { month: 'long' }),
-    year: new Date().getFullYear(),
-    daysElapsed: new Date().getDate(),
-    totalDays: new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).getDate(),
-    categories: [],
-    totalQuantitySold: 0,
-    totalRevenue: 0,
-    totalProducts: 0,
-  };
+  const now = new Date();
+  const currentMonth = now.toLocaleString('en-US', { month: 'long' });
+  const currentYear = now.getFullYear();
+  const daysElapsed = now.getDate();
+
+  const categoryPerformance: CategoryPerformance[] = enhancedData?.data?.performance?.categoryPerformance || [];
+  const totalQuantitySold = categoryPerformance.reduce((sum, cat) => sum + (cat.unitsSold || 0), 0);
+  const totalRevenue = enhancedData?.data?.financial?.monthRevenue || categoryPerformance.reduce((sum, cat) => sum + (cat.revenue || 0), 0);
 
   // Format data for bar chart (top 8 categories by quantity)
-  const barChartData = [...(report.categories || [])]
-    .sort((a, b) => b.totalQuantity - a.totalQuantity)
+  const barChartData = [...categoryPerformance]
+    .sort((a, b) => (b.unitsSold || 0) - (a.unitsSold || 0))
     .slice(0, 8)
     .map((cat, index) => ({
       name: cat.category.length > 12 ? cat.category.substring(0, 12) + '...' : cat.category,
       fullName: cat.category,
-      quantity: cat.totalQuantity,
-      revenue: cat.totalRevenue,
-      products: cat.productCount,
+      quantity: cat.unitsSold || 0,
+      revenue: cat.revenue || 0,
       fill: CHART_COLORS[index % CHART_COLORS.length],
     }));
 
   // Format data for pie chart
-  const pieChartData = [...(report.categories || [])]
-    .sort((a, b) => b.totalQuantity - a.totalQuantity)
+  const pieChartData = [...categoryPerformance]
+    .sort((a, b) => (b.unitsSold || 0) - (a.unitsSold || 0))
     .slice(0, 6)
     .map((cat, index) => ({
       name: cat.category.length > 15 ? cat.category.substring(0, 15) + '...' : cat.category,
-      value: cat.totalQuantity,
-      revenue: cat.totalRevenue,
+      value: cat.unitsSold || 0,
+      revenue: cat.revenue || 0,
       color: CHART_COLORS[index % CHART_COLORS.length],
     }));
 
@@ -151,24 +132,24 @@ export default function MonthlyReportCard() {
               This Month Report
             </CardTitle>
             <CardDescription className="text-sm mt-1">
-              {report.month} 1 - {report.daysElapsed}, {report.year} ({report.daysElapsed} days)
+              {currentMonth} 1 - {daysElapsed}, {currentYear} ({daysElapsed} days)
             </CardDescription>
           </div>
           <div className="flex gap-2 flex-wrap">
             <Badge variant="secondary" className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
               <ShoppingBag className="h-3 w-3 mr-1" />
-              {formatNumber(report.totalQuantitySold)} Units
+              {formatNumber(totalQuantitySold)} Units
             </Badge>
             <Badge variant="secondary" className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300">
               <TrendingUp className="h-3 w-3 mr-1" />
-              Rs. {formatNumber(report.totalRevenue)}
+              Rs. {formatNumber(totalRevenue)}
             </Badge>
           </div>
         </div>
       </CardHeader>
       
       <CardContent className="p-4">
-        {report.categories.length === 0 ? (
+        {categoryPerformance.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             <Package className="h-12 w-12 mx-auto mb-2 opacity-50" />
             <p>No sales data available for this month yet.</p>
@@ -213,7 +194,6 @@ export default function MonthlyReportCard() {
                               <p className="font-medium">{item.fullName}</p>
                               <p>Qty: {Number(item.quantity).toLocaleString()} units</p>
                               <p>Revenue: Rs. {formatNumber(item.revenue)}</p>
-                              <p>Products: {item.products}</p>
                             </div>,
                             ''
                           ];
@@ -289,14 +269,13 @@ export default function MonthlyReportCard() {
                   <thead>
                     <tr className="border-b bg-muted/50">
                       <th className="text-left p-2 font-medium">Category</th>
-                      <th className="text-right p-2 font-medium">Products</th>
                       <th className="text-right p-2 font-medium">Qty Sold</th>
                       <th className="text-right p-2 font-medium">Revenue</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {[...(report.categories || [])]
-                      .sort((a, b) => b.totalQuantity - a.totalQuantity)
+                    {[...categoryPerformance]
+                      .sort((a, b) => (b.unitsSold || 0) - (a.unitsSold || 0))
                       .slice(0, 10)
                       .map((cat, index) => (
                         <tr key={cat.category} className="border-b hover:bg-muted/30 transition-colors">
@@ -307,10 +286,9 @@ export default function MonthlyReportCard() {
                             />
                             <span className="truncate max-w-[150px]">{cat.category}</span>
                           </td>
-                          <td className="text-right p-2 text-muted-foreground">{cat.productCount}</td>
-                          <td className="text-right p-2 font-medium">{cat.totalQuantity.toLocaleString()}</td>
+                          <td className="text-right p-2 font-medium">{(cat.unitsSold || 0).toLocaleString()}</td>
                           <td className="text-right p-2 text-green-600 dark:text-green-400">
-                            Rs. {formatNumber(cat.totalRevenue)}
+                            Rs. {formatNumber(cat.revenue || 0)}
                           </td>
                         </tr>
                       ))}
@@ -318,10 +296,9 @@ export default function MonthlyReportCard() {
                   <tfoot>
                     <tr className="bg-muted/50 font-medium">
                       <td className="p-2">Total</td>
-                      <td className="text-right p-2">{report.totalProducts}</td>
-                      <td className="text-right p-2">{report.totalQuantitySold.toLocaleString()}</td>
+                      <td className="text-right p-2">{totalQuantitySold.toLocaleString()}</td>
                       <td className="text-right p-2 text-green-600 dark:text-green-400">
-                        Rs. {formatNumber(report.totalRevenue)}
+                        Rs. {formatNumber(totalRevenue)}
                       </td>
                     </tr>
                   </tfoot>
