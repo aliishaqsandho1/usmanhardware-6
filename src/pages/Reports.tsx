@@ -7,15 +7,15 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
-import { 
-  MessageCircle, 
-  Send, 
-  Bot, 
-  User, 
-  Loader2, 
-  Sparkles, 
-  Mic, 
-  MicOff, 
+import {
+  MessageCircle,
+  Send,
+  Bot,
+  User,
+  Loader2,
+  Sparkles,
+  Mic,
+  MicOff,
   Volume2,
   VolumeX,
   Zap,
@@ -29,8 +29,8 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiConfig } from "@/utils/apiConfig";
+import DOMPurify from 'dompurify';
 
-const GEMINI_API_KEY = "AIzaSyCa4pclqzhR4PaUyr81irTxp1rPQzEK3IU";
 const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
 
 interface Message {
@@ -77,6 +77,7 @@ interface EnhancedStats {
     newCustomersThisMonth: number;
     avgCustomerValue: number;
     totalReceivables: number;
+    cityDistribution?: Record<string, number>;
   };
   cashFlow: {
     netCashFlow: number;
@@ -107,9 +108,28 @@ const Reports = () => {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [currentLanguage, setCurrentLanguage] = useState<'en-US' | 'ur-PK'>('en-US');
   const [autoSpeak, setAutoSpeak] = useState(false);
+  const [apiKey, setApiKey] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const synthRef = useRef<SpeechSynthesis | null>(null);
+
+  // Fetch API Key
+  useEffect(() => {
+    const fetchApiKey = async () => {
+      try {
+        const response = await fetch(`${apiConfig.getBaseUrl()}/settings`);
+        if (response.ok) {
+          const settings = await response.json();
+          if (settings.gemini_api_key_reports) {
+            setApiKey(settings.gemini_api_key_reports);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to fetch API key:", error);
+      }
+    };
+    fetchApiKey();
+  }, []);
 
   // Fetch enhanced stats from the API
   const { data: enhancedStats, isLoading: statsLoading } = useQuery({
@@ -148,7 +168,7 @@ const Reports = () => {
         setIsListening(false);
         toast({
           title: "Voice Input Error",
-          description: currentLanguage === 'ur-PK' 
+          description: currentLanguage === 'ur-PK'
             ? "آواز کی ان پٹ کیپچر نہیں کر سکا۔ برائے کرم دوبارہ کوشش کریں۔"
             : "Could not capture voice input. Please try again.",
           variant: "destructive",
@@ -203,14 +223,14 @@ const Reports = () => {
     // Clean the text first - remove extra asterisks and clean up formatting
     let cleanText = text.replace(/\*{3,}/g, '**'); // Replace 3+ asterisks with 2
     cleanText = cleanText.replace(/\*{2}\s*\*{2}/g, '**'); // Remove empty bold tags
-    
+
     // Split text into paragraphs
     const paragraphs = cleanText.split('\n\n');
-    
+
     return paragraphs.map((paragraph, index) => {
       // Skip empty paragraphs
       if (!paragraph.trim()) return null;
-      
+
       // Check if it's a header (starts with ** and ends with **)
       if (paragraph.match(/^\*\*[^*]+\*\*$/)) {
         const headerText = paragraph.replace(/^\*\*|\*\*$/g, '').trim();
@@ -221,7 +241,7 @@ const Reports = () => {
           </h3>
         );
       }
-      
+
       // Check if it's a list item (starts with * or -)
       if (paragraph.match(/^[\*\-]\s/)) {
         const listItems = paragraph.split('\n').filter(item => item.trim());
@@ -236,7 +256,7 @@ const Reports = () => {
           </ul>
         );
       }
-      
+
       // Check if it's a numbered list
       if (paragraph.match(/^\d+\./)) {
         const listItems = paragraph.split('\n').filter(item => item.trim());
@@ -253,28 +273,37 @@ const Reports = () => {
           </ol>
         );
       }
-      
+
       // Regular paragraph with inline formatting
       if (paragraph.trim()) {
         // Format bold text (**text**) - be more careful with replacement
         let formattedText = paragraph.replace(/\*\*([^*]+?)\*\*/g, '<strong class="font-medium text-foreground">$1</strong>');
-        
+
+        // Sanitize the HTML before rendering
+        const sanitizedText = DOMPurify.sanitize(formattedText);
+
         return (
-          <p 
-            key={index} 
+          <p
+            key={index}
             className="text-muted-foreground text-xs leading-relaxed mb-2"
-            dangerouslySetInnerHTML={{ __html: formattedText }}
+            dangerouslySetInnerHTML={{ __html: sanitizedText }}
           />
         );
       }
-      
+
       return null;
     }).filter(Boolean);
   };
 
   const generateBusinessContext = (businessData: EnhancedStats) => {
     const currentDate = new Date().toLocaleDateString();
-    
+
+    // Fallback to English city names if Urdu not available
+    const citiesInUrdu = businessData.customers?.cityDistribution ?
+      Object.entries(businessData.customers.cityDistribution)
+        .map(([city, count]) => `${city}: ${count}`)
+        .join(', ') : '';
+
     const contextInUrdu = `
 BUSINESS CONTEXT & CURRENT DATA (بزنس ڈیٹا - ${currentDate} تک):
 
@@ -363,14 +392,18 @@ BUSINESS TYPE: This appears to be a manufacturing/trading business dealing with 
   };
 
   const sendMessageToGemini = async (userMessage: string) => {
+    if (!apiKey) {
+      throw new Error("API Key not ready");
+    }
+
     const needsBusinessContext = isBusinessQuery(userMessage);
-    
+
     let prompt = '';
-    
-    if (needsBusinessContext && enhancedStats?.data) {
-      const businessContext = generateBusinessContext(enhancedStats.data);
+
+    if (needsBusinessContext && enhancedStats) {
+      const businessContext = generateBusinessContext(enhancedStats);
       const responseLanguage = currentLanguage === 'ur-PK' ? 'Urdu (اردو)' : 'English';
-      
+
       prompt = `${businessContext}
 
 RESPONSE LANGUAGE: Please respond in ${responseLanguage}
@@ -436,7 +469,7 @@ Please respond naturally and conversationally. Only include business information
       prompt = currentLanguage === 'ur-PK' ? personalityInUrdu : personalityInEnglish;
     }
 
-    const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
+    const response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -460,7 +493,7 @@ Please respond naturally and conversationally. Only include business information
     }
 
     const result = await response.json();
-    return result.candidates?.[0]?.content?.parts?.[0]?.text || (currentLanguage === 'ur-PK' 
+    return result.candidates?.[0]?.content?.parts?.[0]?.text || (currentLanguage === 'ur-PK'
       ? 'معذرت، لیکن میں اس وقت جواب نہیں دے سکا۔ برائے کرم دوبارہ کوشش کریں۔'
       : 'I apologize, but I couldn\'t generate a response at the moment. Please try again.');
   };
@@ -481,7 +514,7 @@ Please respond naturally and conversationally. Only include business information
 
     try {
       const aiResponse = await sendMessageToGemini(userMessage.content);
-      
+
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
         type: 'ai',
@@ -499,21 +532,21 @@ Please respond naturally and conversationally. Only include business information
       }
     } catch (error) {
       console.error('Error sending message to AI:', error);
-      
+
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
         type: 'ai',
-        content: currentLanguage === 'ur-PK' 
+        content: currentLanguage === 'ur-PK'
           ? "معذرت، لیکن میں اس وقت معلومات تک رسائی میں مسئلہ کا سامنا کر رہا ہوں۔ برائے کرم اپنا کنکشن چیک کریں اور دوبارہ کوشش کریں۔"
           : "I apologize, but I'm having trouble accessing the information right now. Please check your connection and try again.",
         timestamp: new Date()
       };
 
       setMessages(prev => [...prev, errorMessage]);
-      
+
       toast({
         title: currentLanguage === 'ur-PK' ? "خرابی" : "Error",
-        description: currentLanguage === 'ur-PK' 
+        description: currentLanguage === 'ur-PK'
           ? "AI جواب حاصل کرنے میں ناکام۔ برائے کرم دوبارہ کوشش کریں۔"
           : "Failed to get AI response. Please try again.",
         variant: "destructive",
@@ -534,7 +567,7 @@ Please respond naturally and conversationally. Only include business information
     if (!recognitionRef.current) {
       toast({
         title: currentLanguage === 'ur-PK' ? "آواز کی ان پٹ سپورٹ نہیں" : "Voice Input Not Supported",
-        description: currentLanguage === 'ur-PK' 
+        description: currentLanguage === 'ur-PK'
           ? "آپ کا براؤزر آواز کی ان پٹ فیچر کو سپورٹ نہیں کرتا۔"
           : "Your browser doesn't support voice input feature.",
         variant: "destructive",
@@ -550,7 +583,7 @@ Please respond naturally and conversationally. Only include business information
       setIsListening(true);
       toast({
         title: currentLanguage === 'ur-PK' ? "آواز کی ان پٹ" : "Voice Input",
-        description: currentLanguage === 'ur-PK' 
+        description: currentLanguage === 'ur-PK'
           ? "سن رہا ہوں... اب بولیں!"
           : "Listening... Speak now!",
       });
@@ -561,7 +594,7 @@ Please respond naturally and conversationally. Only include business information
     if (!synthRef.current) {
       toast({
         title: currentLanguage === 'ur-PK' ? "ٹیکسٹ ٹو اسپیچ سپورٹ نہیں" : "Text-to-Speech Not Supported",
-        description: currentLanguage === 'ur-PK' 
+        description: currentLanguage === 'ur-PK'
           ? "آپ کا براؤزر ٹیکسٹ ٹو اسپیچ فیچر کو سپورٹ نہیں کرتا۔"
           : "Your browser doesn't support text-to-speech feature.",
         variant: "destructive",
@@ -577,7 +610,7 @@ Please respond naturally and conversationally. Only include business information
 
     // Clean the text for speech
     const cleanText = text.replace(/\*\*/g, '').replace(/\*/g, '').trim();
-    
+
     const utterance = new SpeechSynthesisUtterance(cleanText);
     utterance.rate = 0.9;
     utterance.pitch = 1;
@@ -602,7 +635,7 @@ Please respond naturally and conversationally. Only include business information
       setIsSpeaking(false);
       toast({
         title: currentLanguage === 'ur-PK' ? "اسپیچ کی خرابی" : "Speech Error",
-        description: currentLanguage === 'ur-PK' 
+        description: currentLanguage === 'ur-PK'
           ? "ٹیکسٹ بولنے میں ناکام۔ برائے کرم دوبارہ کوشش کریں۔"
           : "Failed to speak the text. Please try again.",
         variant: "destructive",
@@ -615,10 +648,10 @@ Please respond naturally and conversationally. Only include business information
   const toggleLanguage = () => {
     const newLanguage = currentLanguage === 'en-US' ? 'ur-PK' : 'en-US';
     setCurrentLanguage(newLanguage);
-    
+
     toast({
       title: newLanguage === 'ur-PK' ? "زبان تبدیل کر دی گئی" : "Language Changed",
-      description: newLanguage === 'ur-PK' 
+      description: newLanguage === 'ur-PK'
         ? "اردو میں تبدیل کر دیا گیا"
         : "Switched to English",
     });
@@ -635,7 +668,7 @@ Please respond naturally and conversationally. Only include business information
       'مالی', 'کیش فلو', 'اخراجات', 'آمد', 'تجزیات', 'کارکردگی', 'ترقی',
       'ڈیش بورڈ', 'اعداد و شمار', 'رپورٹ', 'تجزیہ', 'رجحانات', 'پروڈکٹس', 'کمپنی'
     ];
-    
+
     const lowerMessage = message.toLowerCase();
     return businessKeywords.some(keyword => lowerMessage.includes(keyword.toLowerCase()));
   };
@@ -664,7 +697,7 @@ Please respond naturally and conversationally. Only include business information
       <div className="border-b bg-card shadow-sm">
         <div className="flex items-center justify-between p-3">
           <div className="flex items-center gap-3">
-            
+
             <div className="flex items-center gap-3">
               <div className="relative">
                 <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center">
@@ -682,7 +715,7 @@ Please respond naturally and conversationally. Only include business information
               </div>
             </div>
           </div>
-          
+
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-2">
               <Badge variant="secondary" className="h-6 text-xs">
@@ -694,7 +727,7 @@ Please respond naturally and conversationally. Only include business information
                 {currentLanguage === 'ur-PK' ? 'اسمارٹ موڈ' : 'Smart Mode'}
               </Badge>
             </div>
-            
+
             <div className="flex items-center gap-1">
               {/* Auto Speak Toggle */}
               <div className="flex items-center gap-2 px-2">
@@ -708,7 +741,7 @@ Please respond naturally and conversationally. Only include business information
                   {currentLanguage === 'ur-PK' ? 'خودکار' : 'Auto'}
                 </span>
               </div>
-              
+
               {/* Language Toggle */}
               <Button
                 variant="ghost"
@@ -719,7 +752,7 @@ Please respond naturally and conversationally. Only include business information
                 <Languages className="h-3 w-3 mr-1" />
                 {currentLanguage === 'ur-PK' ? 'اردو' : 'EN'}
               </Button>
-              
+
               <Button
                 variant="ghost"
                 size="sm"
@@ -762,12 +795,11 @@ Please respond naturally and conversationally. Only include business information
                     </div>
                   </div>
                 )}
-                
-                <Card className={`max-w-2xl ${
-                  message.type === 'user' 
-                    ? 'bg-primary/10 border-primary/20' 
+
+                <Card className={`max-w-2xl ${message.type === 'user'
+                    ? 'bg-primary/10 border-primary/20'
                     : 'bg-card border-border'
-                }`}>
+                  }`}>
                   <CardContent className="p-3">
                     {message.type === 'user' ? (
                       <p className="text-foreground text-sm leading-relaxed">
@@ -783,16 +815,16 @@ Please respond naturally and conversationally. Only include business information
                         {message.timestamp.toLocaleTimeString()}
                       </p>
                       {message.type === 'ai' && (
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           className="h-6 px-2 text-xs"
                           onClick={() => speakText(message.content)}
                           disabled={isSpeaking}
                         >
                           <Play className="h-3 w-3 mr-1" />
-                          {isSpeaking ? 
-                            (currentLanguage === 'ur-PK' ? 'بول رہا ہے...' : 'Speaking...') : 
+                          {isSpeaking ?
+                            (currentLanguage === 'ur-PK' ? 'بول رہا ہے...' : 'Speaking...') :
                             (currentLanguage === 'ur-PK' ? 'بولیں' : 'Speak')
                           }
                         </Button>
@@ -808,7 +840,7 @@ Please respond naturally and conversationally. Only include business information
                 )}
               </div>
             ))}
-            
+
             {isLoading && (
               <div className="flex gap-3 justify-start">
                 <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center flex-shrink-0">
@@ -819,8 +851,8 @@ Please respond naturally and conversationally. Only include business information
                     <div className="flex items-center gap-2">
                       <div className="flex space-x-1">
                         <div className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce"></div>
-                        <div className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
-                        <div className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                        <div className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                        <div className="w-1.5 h-1.5 bg-primary rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                       </div>
                       <span className="text-muted-foreground text-xs">
                         {currentLanguage === 'ur-PK' ? 'AI سوچ رہا ہے...' : 'AI is thinking...'}
@@ -869,7 +901,7 @@ Please respond naturally and conversationally. Only include business information
           <div className="flex gap-3 items-end">
             <div className="flex-1 relative">
               <Input
-                placeholder={currentLanguage === 'ur-PK' 
+                placeholder={currentLanguage === 'ur-PK'
                   ? "مجھ سے کچھ بھی پوچھیں - کاروبار کی معلومات، عام بات چیت، یا صرف سلام کہیں!"
                   : "Ask me anything - business insights, general chat, or just say hello!"
                 }

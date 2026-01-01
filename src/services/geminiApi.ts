@@ -1,4 +1,5 @@
-export const GEMINI_API_KEY = "AIzaSyBm-JYWO7AtzUPM8_BEEMSqaARcRqHKWPA";
+import { apiConfig } from '../utils/apiConfig';
+
 export const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
 
 export interface GeminiMessage {
@@ -17,9 +18,31 @@ export interface GeminiRequest {
 }
 
 export class GeminiService {
+  private static apiKey: string | null = null;
+
+  private static async getApiKey(): Promise<string> {
+    if (this.apiKey) return this.apiKey;
+
+    try {
+      const response = await fetch(`${apiConfig.getBaseUrl()}/settings`);
+      if (!response.ok) throw new Error('Failed to fetch settings');
+      
+      const settings = await response.json();
+      if (settings.gemini_api_key_service) {
+        this.apiKey = settings.gemini_api_key_service;
+        return this.apiKey;
+      }
+      throw new Error('Gemini API key not found in settings');
+    } catch (error) {
+      console.error('Error fetching API key:', error);
+      throw error;
+    }
+  }
+
   private static async makeRequest(request: GeminiRequest): Promise<string> {
     try {
-      const response = await fetch(`${GEMINI_API_URL}?key=${GEMINI_API_KEY}`, {
+      const apiKey = await this.getApiKey();
+      const response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

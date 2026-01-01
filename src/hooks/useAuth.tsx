@@ -1,6 +1,12 @@
 
 import { useEffect, useState } from 'react';
 import { useToast } from './use-toast';
+import { jwtDecode } from 'jwt-decode';
+
+interface DecodedToken {
+  exp: number;
+  [key: string]: any;
+}
 
 export const useAuth = () => {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
@@ -13,11 +19,16 @@ export const useAuth = () => {
 
   const checkAuth = () => {
     const token = localStorage.getItem('jwt_token');
-    
+
     if (token) {
       try {
-        // You can add token validation here if needed
-        // For now, just check if token exists
+        const decoded = jwtDecode<DecodedToken>(token);
+        const currentTime = Date.now() / 1000;
+
+        if (decoded.exp && decoded.exp < currentTime) {
+          throw new Error('Token expired');
+        }
+
         setIsAuthenticated(true);
       } catch (error) {
         console.error('Invalid token:', error);
@@ -32,7 +43,7 @@ export const useAuth = () => {
     } else {
       setIsAuthenticated(false);
     }
-    
+
     setLoading(false);
   };
 
