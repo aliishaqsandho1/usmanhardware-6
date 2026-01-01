@@ -331,4 +331,22 @@ export const reportsApi = {
 
   getAIRecommendations: () =>
     apiRequest<ApiResponse<any[]>>('/reports/ai-recommendations'),
+
+  // Monthly category sales report (from 1st to current date)
+  getMonthlyCategorySales: () =>
+    apiRequest<ApiResponse<{
+      month: string;
+      year: number;
+      daysElapsed: number;
+      totalDays: number;
+      categories: Array<{
+        category: string;
+        totalQuantity: number;
+        totalRevenue: number;
+        productCount: number;
+      }>;
+      totalQuantitySold: number;
+      totalRevenue: number;
+      totalProducts: number;
+    }>>('/reports/monthly-category-sales'),
 };
