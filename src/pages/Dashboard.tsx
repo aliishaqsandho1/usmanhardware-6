@@ -11,7 +11,6 @@ import { useQuery } from "@tanstack/react-query"
 import { dashboardApi } from "@/services/api"
 import { reportsApi } from "@/services/reportsApi"
 import { Legend, ReferenceLine } from "recharts";
-import MonthlyReportCard from "@/components/dashboard/MonthlyReportCard";
 function formatNumber(value) {
   const num = Number(value);
   if (isNaN(num)) return '0';
@@ -368,11 +367,6 @@ export default function Dashboard() {
             </Card>
           </div>
 
-          {/* Monthly Report Section - Full Width */}
-          <div className="mb-8">
-            <MonthlyReportCard />
-          </div>
-
           {/* Enhanced Charts Section */}
           <div className="grid gap-4 grid-cols-1 lg:grid-cols-2 mb-8">
             {/* Sales vs Target */}
@@ -414,8 +408,6 @@ export default function Dashboard() {
                 </ChartContainer>
               </CardContent>
             </Card>
-
-            {/* Sales by Category - Simplified version */}
             <Card className="col-span-1 shadow-xl border-0 rounded-2xl overflow-hidden transition-all duration-300 hover:shadow-2xl">
               <CardHeader className="pb-3 bg-gradient-to-r from-green-50 to-emerald-100 dark:from-green-950/30 dark:to-emerald-900/30">
                 <CardTitle className="flex items-center gap-3 text-lg font-bold tracking-tight">
@@ -484,6 +476,9 @@ export default function Dashboard() {
                 </ChartContainer>
               </CardContent>
             </Card>
+
+
+
           </div>
 
           {/* New Analytics Section - Weekly Performance Trend */}
