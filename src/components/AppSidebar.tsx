@@ -130,6 +130,11 @@ const financeItems: MenuItem[] = [
 // Analytics & Reports
 const analyticsItems: MenuItem[] = [
   {
+    title: "Reports",
+    url: "/business-reports",
+    icon: FileText,
+  },
+  {
     title: "Profit Analytics",
     url: "/profit",
     icon: PieChart,
